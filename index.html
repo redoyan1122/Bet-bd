@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Betting App (Bangladesh)</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
+    .header { background: #333; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .content { padding: 20px; }
+    .section { margin-bottom: 30px; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .match-item { padding: 10px; border: 1px solid #ccc; margin-top: 10px; border-radius: 5px; }
+    .admin-panel, .wallet, .deposit-form, .withdraw-form, .requests { display: none; }
+    .wallet-icon { position: fixed; bottom: 20px; right: 20px; background: #333; color: #fff; padding: 10px 15px; border-radius: 50%; font-size: 20px; cursor: pointer; }
+    input, select, button { margin: 5px 0; padding: 10px; width: 100%; box-sizing: border-box; }
+    .btn { background: #007bff; color: #fff; border: none; cursor: pointer; }
+    .btn:hover { background: #0056b3; }
+    .label { font-weight: bold; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>Bet App</div>
+    <div>ব্যালেন্স: <span id="balance">0</span>৳</div>
+  </div>
+
+  <div class="content">
+    <div class="section">
+      <small>🔔 নোটিফিকেশন: ম্যাচ সিলেক্ট করুন, অ্যামাউন্ট সেট করুন তারপর বেট করুন</small>
+    </div>
+
+    <div class="section">
+      <h3>ম্যাচ সিলেকশন</h3>
+      <select id="matchSelect"></select>
+      <input type="number" id="betAmount" placeholder="Amount">
+      <button class="btn" onclick="placeBet()">কনফার্ম বেট</button>
+    </div>
+
+    <div class="wallet-icon" onclick="toggleWallet()">💰</div>
+
+    <div class="wallet section">
+      <h3>Wallet</h3>
+      <button onclick="showDeposit()">ডিপোজিট</button>
+      <button onclick="showWithdraw()">উইথড্র</button>
+    </div>
+
+    <div class="deposit-form section">
+      <h3>ডিপোজিট</h3>
+      <select id="depMethod">
+        <option value="bkash">bKash</option>
+        <option value="nagad">Nagad</option>
+      </select>
+      <p>01816395401 এই নাম্বারে সেন্ড মানি করুন</p>
+      <input type="number" id="depAmount" placeholder="Amount">
+      <input type="text" id="depTxid" placeholder="Transaction ID">
+      <button class="btn" onclick="submitDeposit()">Confirm Deposit</button>
+    </div>
+
+    <div class="withdraw-form section">
+      <h3>উইথড্র</h3>
+      <select id="wdMethod">
+        <option value="bkash">bKash</option>
+        <option value="nagad">Nagad</option>
+      </select>
+      <input type="text" id="wdNumber" placeholder="Your Number">
+      <input type="number" id="wdAmount" placeholder="Amount">
+      <button class="btn" onclick="submitWithdraw()">Confirm Withdraw</button>
+    </div>
+
+    <div class="admin-panel section">
+      <h3>Admin Panel</h3>
+      <input type="text" id="newMatch" placeholder="Match Title">
+      <input type="text" id="team1" placeholder="Team 1">
+      <input type="text" id="team2" placeholder="Team 2">
+      <input type="number" id="multiplier" placeholder="Win Multiplier (e.g., 2)">
+      <button onclick="addMatch()">Add Match</button>
+
+      <h4>Deposit Requests</h4>
+      <div id="depRequests"></div>
+
+      <h4>Withdraw Requests</h4>
+      <div id="wdRequests"></div>
+
+      <h4>Declare Winner</h4>
+      <div id="matchList"></div>
+    </div>
+
+    <div style="text-align: center; margin-top: 20px;">
+      <a href="#" onclick="checkAdmin()">RR</a>
+    </div>
+  </div>
+
+<script>
+let balance = 0;
+let matches = [];
+let bets = [];
+let deposits = [];
+let withdraws = [];
+
+function updateBalance() {
+  document.getElementById('balance').innerText = balance;
+}
+
+function toggleWallet() {
+  document.querySelector('.wallet').style.display = 'block';
+  document.querySelector('.deposit-form').style.display = 'none';
+  document.querySelector('.withdraw-form').style.display = 'none';
+}
+
+function showDeposit() {
+  document.querySelector('.deposit-form').style.display = 'block';
+  document.querySelector('.withdraw-form').style.display = 'none';
+}
+
+function showWithdraw() {
+  document.querySelector('.withdraw-form').style.display = 'block';
+  document.querySelector('.deposit-form').style.display = 'none';
+}
+
+function submitDeposit() {
+  const method = document.getElementById('depMethod').value;
+  const amount = parseInt(document.getElementById('depAmount').value);
+  const txid = document.getElementById('depTxid').value;
+  if (amount && txid) {
+    deposits.push({ method, amount, txid });
+    renderDepositRequests();
+    alert("Deposit request sent to admin.");
+  }
+}
+
+function submitWithdraw() {
+  const method = document.getElementById('wdMethod').value;
+  const number = document.getElementById('wdNumber').value;
+  const amount = parseInt(document.getElementById('wdAmount').value);
+  if (number && amount) {
+    withdraws.push({ method, number, amount });
+    renderWithdrawRequests();
+    alert("Withdraw request sent to admin.");
+  }
+}
+
+function addMatch() {
+  const match = document.getElementById('newMatch').value;
+  const t1 = document.getElementById('team1').value;
+  const t2 = document.getElementById('team2').value;
+  const mult = parseFloat(document.getElementById('multiplier').value);
+  matches.push({ match, t1, t2, mult });
+  updateMatchSelect();
+  renderMatches();
+}
+
+function updateMatchSelect() {
+  const sel = document.getElementById('matchSelect');
+  sel.innerHTML = '';
+  matches.forEach((m, i) => {
+    sel.innerHTML += `<option value="${i}">${m.match} (${m.t1} vs ${m.t2})</option>`;
+  });
+}
+
+function placeBet() {
+  const matchIndex = document.getElementById('matchSelect').value;
+  const amount = parseInt(document.getElementById('betAmount').value);
+  const match = matches[matchIndex];
+  if (amount > 0 && amount <= balance) {
+    bets.push({ match: match.match, team: match.t1, amount, multiplier: match.mult });
+    balance -= amount;
+    updateBalance();
+    alert("Bet Placed!");
+  }
+}
+
+function checkAdmin() {
+  const pass = prompt("Enter admin password:");
+  if (pass === "rezoan") {
+    document.querySelector('.admin-panel').style.display = 'block';
+  } else {
+    alert("Wrong password");
+  }
+}
+
+function renderDepositRequests() {
+  const d = document.getElementById('depRequests');
+  d.innerHTML = '';
+  deposits.forEach((req, i) => {
+    d.innerHTML += `<div>${req.method} - ${req.amount}৳ - TXID: ${req.txid} <button onclick="approveDeposit(${i})">Approve</button></div>`;
+  });
+}
+
+function renderWithdrawRequests() {
+  const d = document.getElementById('wdRequests');
+  d.innerHTML = '';
+  withdraws.forEach((req, i) => {
+    d.innerHTML += `<div>${req.method} - ${req.number} - ${req.amount}৳ <button onclick="approveWithdraw(${i})">Approve</button></div>`;
+  });
+}
+
+function approveDeposit(index) {
+  balance += deposits[index].amount;
+  updateBalance();
+  deposits.splice(index, 1);
+  renderDepositRequests();
+}
+
+function approveWithdraw(index) {
+  withdraws.splice(index, 1);
+  renderWithdrawRequests();
+  alert("Withdraw completed manually");
+}
+
+function renderMatches() {
+  const div = document.getElementById('matchList');
+  div.innerHTML = '';
+  matches.forEach((m, i) => {
+    div.innerHTML += `<div class='match-item'><b>${m.match}</b><br>${m.t1} vs ${m.t2}<br><button onclick="declareWinner(${i}, '${m.t1}')">${m.t1} Win</button><button onclick="declareWinner(${i}, '${m.t2}')">${m.t2} Win</button></div>`;
+  });
+}
+
+function declareWinner(index, winner) {
+  const match = matches[index];
+  bets.forEach(bet => {
+    if (bet.match === match.match && bet.team === winner) {
+      balance += bet.amount * bet.multiplier;
+    }
+  });
+  updateBalance();
+  alert(winner + " declared winner.");
+}
+</script>
+
+</body>
+</html>
